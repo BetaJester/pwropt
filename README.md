@@ -3,7 +3,9 @@ A one file improvement to target_compile_options
 
 pwropt allows cross platform compile options in CMake, so you don't have to fiddle with compiler specific flags (most of the time).
 
-[toc]
+* [Requirements](#requirements)
+* [Usage](#usage)
+* [List of Flags](#list-of-flags)
 
 ## Requirements
 
