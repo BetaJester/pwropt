@@ -5,20 +5,27 @@ project(pwropt)
 option(PWROPT_SIMPLE_TEST "Simple code/compile to test" OFF)
 option(PWROPT_NOISY "Output too much information" OFF)
 
+# Usage: pwropt_message(<text>)
+# Output message if PWROPT_NOISY is set.
+# For internal use.
 macro(pwropt_message msg)
 	if(${PWROPT_NOISY})
 		message(${msg})
 	endif()
 endmacro()
 
+# Usage: pwropt_get_option(<outputvar> <compile|link> <pwropt_option>)
+# Decodes a pwropt option for current compiler, passes through unknown
+# and errors on blocked.
+# For internal use.
 function(pwropt_get_option outvar type option)
 
-	# Like a database, but not and also shit.
+	# Generated from https://docs.google.com/spreadsheets/d/1Z82hdGryLYjyyD-t59o1PQKvZmJSPCnlzpx6ffjxWoo/edit?usp=sharing
 	set(compilers "AppleClang;ARMClang;Clang;GNU;IntelLLVM;MSVC;XLClang")
 	set(compiler_ids "1;1;1;1;1;0;1")
-	set(pwroptions "pwr_wall;pwr_werror;pwr_pedantic")
-	set(compile_opts "/W4;/WX;/permissive-;-Wall -Wextra;-Werror;-pedantic-errors")
-	set(link_opts "/W4;/WX;;-Wall -Wextra;-Werror;-pedantic-errors")
+	set(pwroptions "pwr_wall;pwr_werror;pwr_pedantic;pwr_O0;pwr_O1;pwr_O2;pwr_O3;pwr_Odebug;pwr_Ofast;pwr_Osize;pwr_lto")
+	set(compile_opts "/W4;/WX;/permissive-;/Od;/O1;/O2;/O2;/Od;/Ot;/Os;/GL;-Wall -Wextra;-Werror;-pedantic-errors;-O0;-O1;-O2;-O3;-Og;-Ofast;-Os;-flto")
+	set(link_opts "/W4;/WX;;xxx;xxx;xxx;xxx;xxx;xxx;xxx;/LTCG;-Wall -Wextra;-Werror;-pedantic-errors;xxx;xxx;xxx;xxx;xxx;xxx;xxx;-flto")
 
 	list(FIND compilers ${CMAKE_CXX_COMPILER_ID} compiler_index)
 	if (${compiler_index} EQUAL -1)
@@ -31,7 +38,8 @@ function(pwropt_get_option outvar type option)
 
 	list(FIND pwroptions ${option} id)
 	if (${id} EQUAL -1)
-		pwropt_message("pwropt_get_option: pwropt ${option}")
+		pwropt_message("pwropt_get_option: pwropt ${option} not found, passing through untouched")
+		set(${outvar} ${option} PARENT_SCOPE)
 		return()
 	endif()
 
@@ -39,6 +47,7 @@ function(pwropt_get_option outvar type option)
 	math(EXPR index "${compiler_id} * ${len} + ${id}")
 	pwropt_message("pwropt_get_option: option index is ${compiler_id} * ${len} + ${id} (${index})")
 	
+	pwropt_message("pwropt_get_option: looking up as type ${type}")
 	if("${type}" STREQUAL "compile")
 		list(GET compile_opts ${index} outthing)
 	elseif("${type}" STREQUAL "link")
@@ -47,51 +56,35 @@ function(pwropt_get_option outvar type option)
 		return()
 	endif()
 
-	pwropt_message("pwropt_get_option: output should be ${outthing}")
+	if ("${outthing}" STREQUAL "xxx")
+		message(FATAL_ERROR "Blocked option - ${option} is not allowed as a ${type} option")
+	endif()
+
 	set(${outvar} ${outthing} PARENT_SCOPE)
 
 endfunction()
 
-# I wish generator expressions worked in "set", but they just don't.
-if (${CMAKE_CXX_COMPILER_ID} IN_LIST "MSVC")
-	set(pwr_wall /W4 /permissive-)
-	set(pwr_werror /WX)
-elseif(${CMAKE_CXX_COMPILER_ID} IN_LIST "Clang;GNU")
-	set(pwr_wall -Wall -Wextra -pedantic-errors)
-	set(pwr_werror -Werror)
-endif()
-
-# Usage: pwropt_all_compile_options(<outputvar>)
-# Get a list of all viable compile options
-function(pwropt_all_compile_options outputvar)
-	set(${outputvar} "pwr_wall;pwr_werror" PARENT_SCOPE)
-endfunction()
-
-# Usage: pwropt_all_link_options(<outputvar>)
-# Get a list of all viable link options
-function(pwropt_all_link_options outputvar)
-	set(${outputvar} "pwr_lto" PARENT_SCOPE)
-endfunction()
-
-# Usage: pwropt_parse_compile_options(<outputvar>)
-# Get a list of pwropt parsed compile options
-function(pwropt_parse_compile_options outputvar)
-	pwropt_all_compile_options(pwropt_all)
+# Usage: pwropt_parse_x_options(<outputvar> <compile|link>)
+# Get a list of pwropt parsed options for a compile/link stage.
+# For internal use.
+function(pwropt_parse_x_options outputvar type)
+	set(out)
 	foreach(thing ${ARGN})
-		if ("${thing}" IN_LIST pwropt_all)
-			cmake_language(EVAL CODE "set(output \"\${${thing}}\")")
-			set(out "${out};${output}")
-		else()
-			pwropt_message("pwropt_parse: ${thing} not a pwropt expression, passing on as is")
-			set(out "${out};${thing}")
+		pwropt_message("pwropt_parse_x_options parsing: ${thing}")
+		pwropt_get_option(result "${type}" ${thing})
+		if(DEFINED result)
+			pwropt_message("pwropt_parse_x_options result: ${result}")
+			list(APPEND out ${result})
+			pwropt_message("pwropt_parse_x_options current: ${out}")
 		endif()
 	endforeach()
 	set(${outputvar} ${out} PARENT_SCOPE)
 endfunction()
 
-# Usage: pwropt_target_compile_options(<target> [BEFORE] <INTERFACE|PUBLIC|PRIVATE> [items1...] [<INTERFACE|PUBLIC|PRIVATE> [items1...] ...])
-# Exactly like target_compile_options but parses pwropt options too.
-function(pwropt_target_compile_options target)
+# Usage: pwropt_target_x_options(<target> <type>)
+# Actually processes and uses pwropt options.
+# For internal use.
+function(pwropt_target_x_options target type)
 	cmake_parse_arguments(
 		PVAL
 		"BEFORE"
@@ -99,17 +92,18 @@ function(pwropt_target_compile_options target)
 		"PUBLIC;PRIVATE;INTERFACE;"
 		${ARGN}
 	)
-	pwropt_all_compile_options(pwropt_all)
 	set(before "")
 	if(${PVAL_BEFORE})
 		set(before "BEFORE")
 	endif()
 	macro(eval_this visibility items)
 		pwropt_message("Processing ${items}")
-		pwropt_parse_compile_options(parseditems ${items})
-		pwropt_message("Parsed items: ${parseditems}")
-		cmake_language(EVAL CODE "target_compile_options(${target} ${before} ${visibility} ${parseditems})")
-		pwropt_message("target_compile_options(${target} ${before} ${visibility} ${parseditems})")
+		pwropt_parse_x_options(parseditems "${type}" ${items})
+		if(DEFINED parseditems)
+			pwropt_message("Parsed items: ${parseditems}")
+			cmake_language(EVAL CODE "target_${type}_options(${target} ${before} ${visibility} ${parseditems})")
+			pwropt_message("target_${type}_options(${target} ${before} ${visibility} ${parseditems})")
+		endif()
 	endmacro()
 	if (DEFINED PVAL_PUBLIC)
 		eval_this(PUBLIC "${PVAL_PUBLIC}")
@@ -122,22 +116,23 @@ function(pwropt_target_compile_options target)
 	endif()
 endfunction()
 
+# Usage: pwropt_target_compile_options(<target> [BEFORE] <INTERFACE|PUBLIC|PRIVATE> [items1...] [<INTERFACE|PUBLIC|PRIVATE> [items1...] ...])
+# Exactly like target_compile_options but parses pwropt options too.
+function(pwropt_target_compile_options target)
+	pwropt_target_x_options(${target} "compile" "${ARGN}")
+endfunction()
+
+# Usage: pwropt_target_compile_options(<target> [BEFORE] <INTERFACE|PUBLIC|PRIVATE> [items1...] [<INTERFACE|PUBLIC|PRIVATE> [items1...] ...])
+# Exactly like target_compile_options but parses pwropt options too.
+function(pwropt_target_link_options target)
+	pwropt_target_x_options(${target} "link" "${ARGN}")
+endfunction()
+
 # Test that unknowns are passed on as is.
 if (${PWROPT_SIMPLE_TEST})
-	pwropt_get_option(outvar "compile" "pwr_werror")
-	if(DEFINED outvar)
-		pwropt_message("pwropt_get_option result: ${outvar}")
-	else()
-		pwropt_message("pwropt_get_option undefined")
-	endif()
-	pwropt_get_option(outvar "link" "pwr_pedantic")
-	if(DEFINED outvar)
-		pwropt_message("pwropt_get_option result (link): ${outvar}")
-	else()
-		pwropt_message("pwropt_get_option undefined (link)")
-	endif()
-	pwropt_parse_compile_options(outvar pwr_wall whatwhat test pwr_werror)
-	pwropt_message("pwropt_parse: ${outvar}")
-	add_library(what "what.cpp")
-	pwropt_target_compile_options(what PUBLIC pwr_wall pwr_werror /BAD PRIVATE pvt PUBLIC ahoy)
+	#pwropt_parse_compile_options(outvar pwr_wall whatwhat test pwr_werror)
+	#pwropt_message("pwropt_parse: ${outvar}")
+	add_executable(what "what.cpp")
+	pwropt_target_compile_options(what PUBLIC pwr_wall pwr_werror pwr_lto)
+	pwropt_target_link_options(what PUBLIC pwr_pedantic pwr_lto)
 endif()
