@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.18.0)
 
 project(pwropt)
 
-option(PWROPT_SIMPLE_TEST "Simple library compile to test" OFF)
+option(PWROPT_SIMPLE_TEST "Simple code/compile to test" OFF)
 option(PWROPT_NOISY "Output too much information" OFF)
 
 macro(pwropt_message msg)
@@ -10,6 +10,47 @@ macro(pwropt_message msg)
 		message(${msg})
 	endif()
 endmacro()
+
+function(pwropt_get_option outvar type option)
+
+	# Like a database, but not and also shit.
+	set(compilers "AppleClang;ARMClang;Clang;GNU;IntelLLVM;MSVC;XLClang")
+	set(compiler_ids "1;1;1;1;1;0;1")
+	set(pwroptions "pwr_wall;pwr_werror;pwr_pedantic")
+	set(compile_opts "/W4;/WX;/permissive-;-Wall -Wextra;-Werror;-pedantic-errors")
+	set(link_opts "/W4;/WX;;-Wall -Wextra;-Werror;-pedantic-errors")
+
+	list(FIND compilers ${CMAKE_CXX_COMPILER_ID} compiler_index)
+	if (${compiler_index} EQUAL -1)
+		pwropt_message("pwropt_get_option: Count not find compiler")
+		return()
+	endif()
+
+	list(GET compiler_ids ${compiler_index} compiler_id)
+	pwropt_message("pwropt_get_option: compiler id is ${compiler_id}")
+
+	list(FIND pwroptions ${option} id)
+	if (${id} EQUAL -1)
+		pwropt_message("pwropt_get_option: pwropt ${option}")
+		return()
+	endif()
+
+	list(LENGTH pwroptions len)
+	math(EXPR index "${compiler_id} * ${len} + ${id}")
+	pwropt_message("pwropt_get_option: option index is ${compiler_id} * ${len} + ${id} (${index})")
+	
+	if("${type}" STREQUAL "compile")
+		list(GET compile_opts ${index} outthing)
+	elseif("${type}" STREQUAL "link")
+		list(GET link_opts ${index} outthing)
+	else()
+		return()
+	endif()
+
+	pwropt_message("pwropt_get_option: output should be ${outthing}")
+	set(${outvar} ${outthing} PARENT_SCOPE)
+
+endfunction()
 
 # I wish generator expressions worked in "set", but they just don't.
 if (${CMAKE_CXX_COMPILER_ID} IN_LIST "MSVC")
@@ -24,6 +65,12 @@ endif()
 # Get a list of all viable compile options
 function(pwropt_all_compile_options outputvar)
 	set(${outputvar} "pwr_wall;pwr_werror" PARENT_SCOPE)
+endfunction()
+
+# Usage: pwropt_all_link_options(<outputvar>)
+# Get a list of all viable link options
+function(pwropt_all_link_options outputvar)
+	set(${outputvar} "pwr_lto" PARENT_SCOPE)
 endfunction()
 
 # Usage: pwropt_parse_compile_options(<outputvar>)
@@ -77,6 +124,18 @@ endfunction()
 
 # Test that unknowns are passed on as is.
 if (${PWROPT_SIMPLE_TEST})
+	pwropt_get_option(outvar "compile" "pwr_werror")
+	if(DEFINED outvar)
+		pwropt_message("pwropt_get_option result: ${outvar}")
+	else()
+		pwropt_message("pwropt_get_option undefined")
+	endif()
+	pwropt_get_option(outvar "link" "pwr_pedantic")
+	if(DEFINED outvar)
+		pwropt_message("pwropt_get_option result (link): ${outvar}")
+	else()
+		pwropt_message("pwropt_get_option undefined (link)")
+	endif()
 	pwropt_parse_compile_options(outvar pwr_wall whatwhat test pwr_werror)
 	pwropt_message("pwropt_parse: ${outvar}")
 	add_library(what "what.cpp")
