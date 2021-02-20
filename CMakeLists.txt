@@ -89,9 +89,13 @@ function(pwropt_target_x_options target type)
 		PVAL
 		"BEFORE"
 		""
-		"PUBLIC;PRIVATE;INTERFACE;"
+		"PUBLIC;PRIVATE;INTERFACE;COMPILERS"
 		${ARGN}
 	)
+	pwropt_message("Compilers for options: ${PVAL_COMPILERS}")
+	if(NOT ${CMAKE_CXX_COMPILER_ID} IN_LIST PVAL_COMPILERS)
+		return()
+	endif()
 	set(before "")
 	if(${PVAL_BEFORE})
 		set(before "BEFORE")
@@ -134,5 +138,6 @@ if (${PWROPT_SIMPLE_TEST})
 	#pwropt_message("pwropt_parse: ${outvar}")
 	add_executable(what "what.cpp")
 	pwropt_target_compile_options(what PUBLIC pwr_wall pwr_werror pwr_lto)
+	pwropt_target_compile_options(what COMPILERS GNU Clang PUBLIC -badoption)
 	pwropt_target_link_options(what PUBLIC pwr_pedantic pwr_lto)
 endif()
