@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18.0)
+cmake_minimum_required(VERSION 3.3)
 
 project(pwropt)
 
@@ -18,7 +18,27 @@ endmacro()
 # Decodes a pwropt option for current compiler, passes through unknown
 # and errors on blocked.
 # For internal use.
-function(pwropt_get_option outvar type option)
+function(pwropt_get_option outvar type)
+
+	cmake_parse_arguments(
+		PVAL
+		""
+		"OPTION"
+		"COMPILERS"
+		${ARGN}
+	)
+
+	if(DEFINED PVAL_COMPILERS AND NOT ${CMAKE_CXX_COMPILER_ID} IN_LIST PVAL_COMPILERS)
+		pwropt_message("Ignoring due to wrong compiler")
+		return()
+	endif()
+
+	set(goodtypes compile link)
+	string(TOLOWER ${type} type)
+	if(NOT ${PVAL_TYPE} IN_LIST goodtypes)
+		message(FATAL_ERROR "pwropt does not support type '${type}'")
+		return()
+	endif()
 
 	# Generated from https://docs.google.com/spreadsheets/d/1Z82hdGryLYjyyD-t59o1PQKvZmJSPCnlzpx6ffjxWoo/edit?usp=sharing
 	set(compilers "AppleClang;ARMClang;Clang;GNU;IntelLLVM;MSVC;XLClang")
@@ -36,10 +56,10 @@ function(pwropt_get_option outvar type option)
 	list(GET compiler_ids ${compiler_index} compiler_id)
 	pwropt_message("pwropt_get_option: compiler id is ${compiler_id}")
 
-	list(FIND pwroptions ${option} id)
+	list(FIND pwroptions ${PVAL_OPTION} id)
 	if (${id} EQUAL -1)
-		pwropt_message("pwropt_get_option: pwropt ${option} not found, passing through untouched")
-		set(${outvar} ${option} PARENT_SCOPE)
+		pwropt_message("pwropt_get_option: pwropt ${PVAL_OPTION} not found, passing through untouched")
+		set(${outvar} ${PVAL_OPTION} PARENT_SCOPE)
 		return()
 	endif()
 
@@ -53,25 +73,33 @@ function(pwropt_get_option outvar type option)
 	elseif("${type}" STREQUAL "link")
 		list(GET link_opts ${index} outthing)
 	else()
+		message(FATAL_ERROR "Not a supported type, somehow")
 		return()
 	endif()
 
 	if ("${outthing}" STREQUAL "xxx")
-		message(FATAL_ERROR "Blocked option - ${option} is not allowed as a ${type} option")
+		message(FATAL_ERROR "Blocked option - ${PVAL_OPTION} is not allowed as a ${type} option")
 	endif()
 
 	set(${outvar} ${outthing} PARENT_SCOPE)
 
 endfunction()
 
-# Usage: pwropt_parse_x_options(<outputvar> <compile|link>)
+# Usage: pwropt_parse_options(<outputvar> <compile|link>)
 # Get a list of pwropt parsed options for a compile/link stage.
 # For internal use.
-function(pwropt_parse_x_options outputvar type)
+function(pwropt_parse_options outputvar type)
+	cmake_parse_arguments(
+		PVAL
+		""
+		""
+		"COMPILERS;OPTIONS"
+		${ARGN}
+	)
 	set(out)
-	foreach(thing ${ARGN})
-		pwropt_message("pwropt_parse_x_options parsing: ${thing}")
-		pwropt_get_option(result "${type}" ${thing})
+	foreach(thing ${PVAL_OPTIONS})
+		pwropt_message("pwropt_parse_options parsing: ${thing}")
+		pwropt_get_option(result ${type} COMPILERS ${PVAL_COMPILERS} OPTION ${thing})
 		if(DEFINED result)
 			pwropt_message("pwropt_parse_x_options result: ${result}")
 			list(APPEND out ${result})
@@ -81,10 +109,20 @@ function(pwropt_parse_x_options outputvar type)
 	set(${outputvar} ${out} PARENT_SCOPE)
 endfunction()
 
-# Usage: pwropt_target_x_options(<target> <type>)
+# Usage: pwropt_target_options(<target> <type>)
 # Actually processes and uses pwropt options.
 # For internal use.
-function(pwropt_target_x_options target type)
+function(pwropt_target_options target type)
+
+	pwropt_message("pwropt_target_options: ${target} ${type} ${ARGN}")
+
+	set(goodtypes compile link)
+	string(TOLOWER ${type} type)
+	if(NOT ${type} IN_LIST goodtypes)
+		message(FATAL_ERROR "pwropt does not support type '${type}'")
+		return()
+	endif()
+
 	cmake_parse_arguments(
 		PVAL
 		"BEFORE"
@@ -92,22 +130,26 @@ function(pwropt_target_x_options target type)
 		"PUBLIC;PRIVATE;INTERFACE;COMPILERS"
 		${ARGN}
 	)
-	if(DEFINED PVAL_COMPILERS AND NOT "${CMAKE_CXX_COMPILER_ID}" IN_LIST PVAL_COMPILERS)
-		return()
-	endif()
+
 	set(before "")
 	if(${PVAL_BEFORE})
 		set(before "BEFORE")
 	endif()
+
 	macro(eval_this visibility items)
 		pwropt_message("Processing ${items}")
-		pwropt_parse_x_options(parseditems "${type}" ${items})
+		pwropt_parse_options(parseditems ${type} COMPILERS ${PVAL_COMPILERS} OPTIONS ${items})
 		if(DEFINED parseditems)
 			pwropt_message("Parsed items: ${parseditems}")
-			cmake_language(EVAL CODE "target_${type}_options(${target} ${before} ${visibility} ${parseditems})")
+			if(${type} STREQUAL "compile")
+				target_compile_options(${target} ${before} ${visibility} ${parseditems})
+			elseif(${type} STREQUAL "link")
+				target_link_options(${target} ${before} ${visibility} ${parseditems})
+			endif()
 			pwropt_message("target_${type}_options(${target} ${before} ${visibility} ${parseditems})")
 		endif()
 	endmacro()
+
 	if (DEFINED PVAL_PUBLIC)
 		eval_this(PUBLIC "${PVAL_PUBLIC}")
 	endif()
@@ -122,13 +164,13 @@ endfunction()
 # Usage: pwropt_target_compile_options(<target> [BEFORE] [COMPILERS <compiler1,...>] <INTERFACE|PUBLIC|PRIVATE> [items1...] [<INTERFACE|PUBLIC|PRIVATE> [items1...] ...])
 # Exactly like target_compile_options but parses pwropt options too.
 function(pwropt_target_compile_options target)
-	pwropt_target_x_options(${target} "compile" "${ARGN}")
+	pwropt_target_options(${target} COMPILE ${ARGN})
 endfunction()
 
 # Usage: pwropt_target_link_options(<target> [BEFORE] [COMPILERS <compiler1,...>] <INTERFACE|PUBLIC|PRIVATE> [items1...] [<INTERFACE|PUBLIC|PRIVATE> [items1...] ...])
 # Exactly like target_link_options but parses pwropt options too.
 function(pwropt_target_link_options target)
-	pwropt_target_x_options(${target} "link" "${ARGN}")
+	pwropt_target_options(${target} LINK ${ARGN})
 endfunction()
 
 # Test that unknowns are passed on as is.
@@ -139,5 +181,5 @@ if (${PWROPT_SIMPLE_TEST})
 	pwropt_target_compile_options(what PUBLIC pwr_wall pwr_werror pwr_lto)
 	pwropt_target_compile_options(what COMPILERS GNU Clang PUBLIC -badgnuoption)
 	pwropt_target_compile_options(what COMPILERS MSVC PUBLIC -badmsvcoption)
-	pwropt_target_link_options(what PUBLIC pwr_pedantic pwr_lto)
+	pwropt_target_link_options(what PUBLIC pwr_pedantic pwr_lto pwr_wall pwr_werror)
 endif()
