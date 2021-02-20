@@ -92,8 +92,7 @@ function(pwropt_target_x_options target type)
 		"PUBLIC;PRIVATE;INTERFACE;COMPILERS"
 		${ARGN}
 	)
-	pwropt_message("Compilers for options: ${PVAL_COMPILERS}")
-	if(NOT ${CMAKE_CXX_COMPILER_ID} IN_LIST PVAL_COMPILERS)
+	if(DEFINED PVAL_COMPILERS AND NOT "${CMAKE_CXX_COMPILER_ID}" IN_LIST PVAL_COMPILERS)
 		return()
 	endif()
 	set(before "")
@@ -120,14 +119,14 @@ function(pwropt_target_x_options target type)
 	endif()
 endfunction()
 
-# Usage: pwropt_target_compile_options(<target> [BEFORE] <INTERFACE|PUBLIC|PRIVATE> [items1...] [<INTERFACE|PUBLIC|PRIVATE> [items1...] ...])
+# Usage: pwropt_target_compile_options(<target> [BEFORE] [COMPILERS <compiler1,...>] <INTERFACE|PUBLIC|PRIVATE> [items1...] [<INTERFACE|PUBLIC|PRIVATE> [items1...] ...])
 # Exactly like target_compile_options but parses pwropt options too.
 function(pwropt_target_compile_options target)
 	pwropt_target_x_options(${target} "compile" "${ARGN}")
 endfunction()
 
-# Usage: pwropt_target_compile_options(<target> [BEFORE] <INTERFACE|PUBLIC|PRIVATE> [items1...] [<INTERFACE|PUBLIC|PRIVATE> [items1...] ...])
-# Exactly like target_compile_options but parses pwropt options too.
+# Usage: pwropt_target_link_options(<target> [BEFORE] [COMPILERS <compiler1,...>] <INTERFACE|PUBLIC|PRIVATE> [items1...] [<INTERFACE|PUBLIC|PRIVATE> [items1...] ...])
+# Exactly like target_link_options but parses pwropt options too.
 function(pwropt_target_link_options target)
 	pwropt_target_x_options(${target} "link" "${ARGN}")
 endfunction()
@@ -138,6 +137,7 @@ if (${PWROPT_SIMPLE_TEST})
 	#pwropt_message("pwropt_parse: ${outvar}")
 	add_executable(what "what.cpp")
 	pwropt_target_compile_options(what PUBLIC pwr_wall pwr_werror pwr_lto)
-	pwropt_target_compile_options(what COMPILERS GNU Clang PUBLIC -badoption)
+	pwropt_target_compile_options(what COMPILERS GNU Clang PUBLIC -badgnuoption)
+	pwropt_target_compile_options(what COMPILERS MSVC PUBLIC -badmsvcoption)
 	pwropt_target_link_options(what PUBLIC pwr_pedantic pwr_lto)
 endif()
