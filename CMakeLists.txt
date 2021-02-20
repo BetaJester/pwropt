@@ -28,8 +28,8 @@ function(pwropt_get_option outvar type)
 		${ARGN}
 	)
 
-	if(DEFINED PVAL_COMPILERS AND NOT ${CMAKE_CXX_COMPILER_ID} IN_LIST PVAL_COMPILERS)
-		pwropt_message("Ignoring due to wrong compiler")
+	if(DEFINED PVAL_COMPILERS AND NOT "${CMAKE_CXX_COMPILER_ID}" IN_LIST PVAL_COMPILERS)
+		pwropt_message("Ignoring due to wrong compiler (${CMAKE_CXX_COMPILER_ID}) not in ${PVAL_COMPILERS}")
 		return()
 	endif()
 
@@ -79,6 +79,10 @@ function(pwropt_get_option outvar type)
 
 	if ("${outthing}" STREQUAL "xxx")
 		message(FATAL_ERROR "Blocked option - ${PVAL_OPTION} is not allowed as a ${type} option")
+	endif()
+
+	if(DEFINED outthing)
+		string(REGEX REPLACE "[ ]" ";" outthing "${outthing}")
 	endif()
 
 	set(${outvar} ${outthing} PARENT_SCOPE)
