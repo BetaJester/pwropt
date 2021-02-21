@@ -1,0 +1,8 @@
+extraction:
+  cpp:
+    after_prepare:
+      - sudo mv /usr/local/bin/cmake /usr/local/bin/cmake-old
+      - sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 8611B7A28669BB93
+      - sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ xenial main'
+      - sudo apt-get update && sudo apt-get install -y cmake
+      - cmake --version
