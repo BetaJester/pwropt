@@ -1,5 +1,4 @@
 extraction:
-libssl-dev
   cpp:
     prepare:
       packages:
