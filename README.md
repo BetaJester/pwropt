@@ -1,4 +1,7 @@
 # pwropt
+
+[![CMake](https://github.com/BetaJester/pwropt/actions/workflows/cmake.yml/badge.svg?branch=main)](https://github.com/BetaJester/pwropt/actions/workflows/cmake.yml)
+
 A one file improvement to target_compile_options
 
 pwropt allows cross platform compile/link options in CMake, so you don't have to fiddle with compiler specific flags (most of the time). Specifically made with C/C++ in mind.
