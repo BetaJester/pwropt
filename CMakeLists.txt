@@ -43,9 +43,9 @@ function(pwropt_get_option outvar type)
 	# Generated from https://docs.google.com/spreadsheets/d/1Z82hdGryLYjyyD-t59o1PQKvZmJSPCnlzpx6ffjxWoo/edit?usp=sharing
 	set(compilers "AppleClang;ARMClang;Clang;GNU;IntelLLVM;MSVC;XLClang")
 	set(compiler_ids "1;1;1;1;1;0;1")
-	set(pwroptions "pwr_wall;pwr_werror;pwr_pedantic;pwr_O0;pwr_O1;pwr_O2;pwr_O3;pwr_Odebug;pwr_Ofast;pwr_Osize;pwr_lto")
-	set(compile_opts "/W4;/WX;/permissive-;/Od;/O1;/O2;/O2;/Od;/Ot;/Os;/GL;-Wall -Wextra;-Werror;-pedantic-errors;-O0;-O1;-O2;-O3;-Og;-Ofast;-Os;-flto")
-	set(link_opts "/W4;/WX;;xxx;xxx;xxx;xxx;xxx;xxx;xxx;/LTCG;-Wall -Wextra;-Werror;-pedantic-errors;xxx;xxx;xxx;xxx;xxx;xxx;xxx;-flto")
+	set(pwroptions "pwr_wall;pwr_werror;pwr_pedantic;pwr_O0;pwr_O1;pwr_O2;pwr_O3;pwr_Odebug;pwr_Ofast;pwr_Osize;pwr_lto;pwr_no-exceptions;pwr_no-rtti;pwr_no-threadsafe-statics;pwr_cpp_20;pwr_cpp_17;pwr_cpp_14;pwr_cpp_11")
+	set(compile_opts "/W4;/WX;/permissive-;/Od;/O1;/O2;/O2;/Od;/Ot;/Os;/GL;;/GR-;/Zc:threadSafeInit-;-std:c++latest;-std:c++17;-std:c++14;-std:c++11;-Wall -Wextra;-Werror;-pedantic-errors;-O0;-O1;-O2;-O3;-Og;-Ofast;-Os;-flto;-fno-exceptions;-fno-rtti;-fno-threadsafe-statics;-std=c++2a;-std=c++17;-std=c++14;-std=c++11")
+	set(link_opts "/W4;/WX;;xxx;xxx;xxx;xxx;xxx;xxx;xxx;/LTCG;xxx;xxx;xxx;xxx;xxx;xxx;xxx;-Wall -Wextra;-Werror;-pedantic-errors;xxx;xxx;xxx;xxx;xxx;xxx;xxx;-flto;xxx;xxx;xxx;xxx;xxx;xxx;xxx")
 
 	list(FIND compilers ${CMAKE_CXX_COMPILER_ID} compiler_index)
 	if (${compiler_index} EQUAL -1)
