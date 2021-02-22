@@ -14,11 +14,11 @@ macro(pwropt_message msg)
 	endif()
 endmacro()
 
-# Usage: pwropt_get_option(<outputvar> <compile|link> <pwropt_option>)
+# Usage: pwropt_parse_option(<outputvar> <compile|link> <pwropt_option>)
 # Decodes a pwropt option for current compiler, passes through unknown
 # and errors on blocked.
 # For internal use.
-function(pwropt_get_option outvar type)
+function(pwropt_parse_option outvar type)
 
 	cmake_parse_arguments(
 		PVAL
@@ -103,7 +103,7 @@ function(pwropt_parse_options outputvar type)
 	set(out)
 	foreach(thing ${PVAL_OPTIONS})
 		pwropt_message("pwropt_parse_options parsing: ${thing}")
-		pwropt_get_option(result ${type} COMPILERS ${PVAL_COMPILERS} OPTION ${thing})
+		pwropt_parse_option(result ${type} COMPILERS ${PVAL_COMPILERS} OPTION ${thing})
 		if(DEFINED result)
 			pwropt_message("pwropt_parse_x_options result: ${result}")
 			list(APPEND out ${result})
