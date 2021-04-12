@@ -177,6 +177,40 @@ function(pwropt_target_link_options target)
 	pwropt_target_options(${target} LINK ${ARGN})
 endfunction()
 
+# Usage: pwropt_target_link_libraries(<target> [COMPILERS <compiler1,...>] <INTERFACE|PUBLIC|PRIVATE> [items1...] [<INTERFACE|PUBLIC|PRIVATE> [items1...] ...])
+# Exactly like target_link_libraries (for now), with optional compiler restrictions
+function(pwropt_target_link_libraries target)
+
+	cmake_parse_arguments(
+		PVAL
+		""
+		""
+		"PUBLIC;PRIVATE;INTERFACE;COMPILERS"
+		${ARGN}
+	)
+
+	if(DEFINED PVAL_COMPILERS AND NOT "${CMAKE_CXX_COMPILER_ID}" IN_LIST PVAL_COMPILERS)
+		pwropt_message("Ignoring due to wrong compiler (${CMAKE_CXX_COMPILER_ID}) not in ${PVAL_COMPILERS}")
+		return()
+	endif()
+
+	macro(eval_this visibility items)
+		pwropt_message("Processing link libraries '${target}' '${visibility}' '${items}'")
+		target_link_libraries(${target} ${visibility} ${items})
+	endmacro()
+
+	if (DEFINED PVAL_PUBLIC)
+		eval_this(PUBLIC "${PVAL_PUBLIC}")
+	endif()
+	if (DEFINED PVAL_PRIVATE)
+		eval_this(PRIVATE ${PVAL_PRIVATE})
+	endif()
+	if (DEFINED PVAL_INTERFACE)
+		eval_this(INTERFACE ${PVAL_INTERFACE})
+	endif()
+
+endfunction()
+
 function(pwropt_target_cxx_latest target visibility)
 	if("cxx_std_20" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
 		message("Building ${target} for C++20")
@@ -205,4 +239,5 @@ if (${PWROPT_SIMPLE_TEST})
 	pwropt_target_compile_options(what COMPILERS GNU Clang PUBLIC pwr_pedantic -O2)
 	pwropt_target_compile_options(what COMPILERS MSVC PUBLIC pwr_Odebug /permissive-)
 	pwropt_target_link_options(what PUBLIC pwr_pedantic pwr_lto)
+	pwropt_target_link_libraries(what COMPILERS GNU PUBLIC -pthread)
 endif()
